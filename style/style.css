@@ -1,0 +1,135 @@
+@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@100;200;300;400;500;600;700&display=swap");
+
+:root {
+  --shadow: rgba(0, 0, 0, 0.555);
+}
+
+* {
+  padding: 0;
+  margin: 0;
+  box-sizing: border-box;
+  font-family: "Poppins", sans-serif;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  width: 100%;
+  background: rgb(183, 0, 255);
+}
+
+.reponse {
+  background: #fff;
+  padding: 5px;
+}
+
+.container {
+  position: relative;
+  display: flex;
+  width: 70%;
+  height: 60%;
+  box-shadow: 1px 1px 5px var(--shadow);
+  padding: 20px;
+  overflow: hidden;
+}
+
+.left,
+.right {
+  width: 50%;
+}
+
+.container .left {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.container .left i {
+  font-size: 80px;
+}
+
+.container .right {
+  display: flex;
+  flex-direction: column;
+  text-align: center;
+  justify-content: center;
+  padding-left: 20px;
+  border-left: 1px solid var(--shadow);
+  height: auto;
+}
+
+.content {
+  position: relative;
+  display: flex;
+  height: calc(100%);
+  overflow: hidden;
+  transition: 1s all;
+}
+
+#content.show {
+  height: calc(100% - 10rem);
+}
+
+.content form {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  width: 100%;
+  height: auto;
+}
+
+form:last-child {
+  transform: translateX(200%);
+  transition: 1s all;
+}
+
+input {
+  padding: 10px;
+  border: none;
+  outline: none;
+  background: #0000002c;
+  color: #000;
+  border-radius: 3px;
+  font-size: 17px;
+  font-weight: 500;
+}
+
+input::placeholder {
+  color: #000;
+}
+
+input:last-child {
+  cursor: pointer;
+  border: 1px solid var(--shadow);
+}
+
+#btn {
+  color: #fff;
+  border: none;
+  outline: none;
+  background: none;
+}
+
+#btn:hover {
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+#form-connect.show {
+  transform: translateX(0);
+}
+
+#form-inscr.hide {
+  transform: translateX(-200%);
+}
+
+#form-inscr {
+  transform: translateX(0);
+  transition: 1s all;
+}
