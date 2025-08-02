@@ -1,6 +1,6 @@
 <?php
 session_start();
-$pdo = new PDO('mysql:host=localhost;dbname=kamerhosting_amn', 'kamerhosting_amn', 'RStLrbpGNPOq');
+$pdo = new PDO('mysql:host=localhost;dbname=inscription', 'root', '');
 
 // ======= Inscription =======
 if (isset($_POST['inscription'])) {
@@ -10,7 +10,7 @@ if (isset($_POST['inscription'])) {
     $mot_de_passe = password_hash($_POST['mot_de_passe'], PASSWORD_BCRYPT);
 
     // Vérifier si l'email existe déjà
-    $stmt = $pdo->prepare("SELECT * FROM compte WHERE email = ?");
+    $stmt = $pdo->prepare("SELECT * FROM utilisateurs WHERE email = ?");
     $stmt->execute([$email]);
 
     if ($stmt->rowCount() > 0) {
@@ -19,7 +19,7 @@ if (isset($_POST['inscription'])) {
     }
 
     // Insérer dans la table compte
-    $insert = $pdo->prepare("INSERT INTO compte (nom, prenom, email, mot_de_passe) VALUES (?, ?, ?, ?)");
+    $insert = $pdo->prepare("INSERT INTO utilisateurs (nom, prenom, email, mot_de_passe) VALUES (?, ?, ?, ?)");
     $insert->execute([$nom, $prenom, $email, $mot_de_passe]);
 
     if ($insert) {
@@ -35,7 +35,7 @@ if (isset($_POST['connexion'])) {
     $email = $_POST['email_connexion'];
     $mot_de_passe = $_POST['mot_de_passe_connexion'];
 
-    $stmt = $pdo->prepare("SELECT * FROM compte WHERE email = ?");
+    $stmt = $pdo->prepare("SELECT * FROM utilisateurs WHERE email = ?");
     $stmt->execute([$email]);
     $user = $stmt->fetch();
 

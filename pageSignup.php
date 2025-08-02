@@ -1,31 +1,44 @@
 <?php
 session_start();
-$pdo = new PDO('mysql:host=localhost;dbname=kamerhosting_amn', 'kamerhosting_amn', 'RStLrbpGNPOq');
+require_once 'config/auth.php';
 
-// Inscription
-if (isset($_POST['inscription'])) {
-    $nom = htmlspecialchars($_POST['nom']);
-    $prenom = htmlspecialchars($_POST['prenom']);
-    $email = htmlspecialchars($_POST['email']);
-    $mot_de_passe = password_hash($_POST['mot_de_passe'], PASSWORD_BCRYPT);
+$auth = new Auth();
+$message = '';
+$messageType = 'error';
 
-    $stmt = $pdo->prepare("SELECT * FROM compte WHERE email = ?");
-    $stmt->execute([$email]);
-
-    if ($stmt->rowCount() > 0) {
-        header("Location: pageSignup.php?msg=Email déjà utilisé");
-        exit();
-    }
-
-    $insert = $pdo->prepare("INSERT INTO compte (nom, prenom, email, mot_de_passe, type) VALUES (?, ?, ?, ?, ?)");
-    $insert->execute([$nom, $prenom, $email, $mot_de_passe, $type]);
-
-    if ($insert) {
-        header("Location: pageLogin.php?msg=Inscription réussie ! Veuillez vous connecter.");
+// Traitement de l'inscription
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['inscription'])) {
+    // Validation CSRF
+    if (!$auth->validateCSRFToken($_POST['csrf_token'] ?? '')) {
+        $message = 'Token de sécurité invalide';
     } else {
-        header("Location: pageSignup.php?msg=Erreur lors de l'inscription.");
+        $nom = $_POST['nom'] ?? '';
+        $prenom = $_POST['prenom'] ?? '';
+        $email = $_POST['email'] ?? '';
+        $password = $_POST['mot_de_passe'] ?? '';
+        $confirmPassword = $_POST['confirm_password'] ?? '';
+        $type = $_POST['type'] ?? 'etudiant';
+        
+        // Validation des mots de passe
+        if ($password !== $confirmPassword) {
+            $message = 'Les mots de passe ne correspondent pas';
+        } else {
+            $result = $auth->register($nom, $prenom, $email, $password, $type);
+            
+            if ($result['success']) {
+                header("Location: pageLogin.php?msg=Inscription réussie ! Vous pouvez maintenant vous connecter.&type=success");
+                exit();
+            } else {
+                $message = $result['message'];
+            }
+        }
     }
-    exit();
+}
+
+// Récupération du message depuis l'URL
+if (isset($_GET['msg'])) {
+    $message = htmlspecialchars($_GET['msg']);
+    $messageType = isset($_GET['type']) ? $_GET['type'] : 'info';
 }
 ?>
 
@@ -137,16 +150,23 @@ if (isset($_POST['inscription'])) {
     <p class="welcome">Bienvenue chez COENDAI ! Inscrivez-vous pour continuer.</p>
 
     <form action="pageSignup.php" method="POST">
-      <input type="text" name="nom" placeholder="Nom" required>
-      <input type="text" name="prenom" placeholder="Prénom" required>
-      <input type="email" name="email" placeholder="Email" required>
+      <input type="hidden" name="csrf_token" value="<?php echo $auth->generateCSRFToken(); ?>">
+      <input type="text" name="nom" placeholder="Nom" required value="<?php echo isset($_POST['nom']) ? htmlspecialchars($_POST['nom']) : ''; ?>">
+      <input type="text" name="prenom" placeholder="Prénom" required value="<?php echo isset($_POST['prenom']) ? htmlspecialchars($_POST['prenom']) : ''; ?>">
+      <input type="email" name="email" placeholder="Email" required value="<?php echo isset($_POST['email']) ? htmlspecialchars($_POST['email']) : ''; ?>">
       <input type="password" name="mot_de_passe" placeholder="Mot de passe" required>
+      <input type="password" name="confirm_password" placeholder="Confirmer le mot de passe" required>
+      <div style="margin: 10px 0; text-align: left; font-size: 12px; color: #666;">
+        Le mot de passe doit contenir au moins 8 caractères, une majuscule, une minuscule, un chiffre et un caractère spécial.
+      </div>
       <button type="submit" name="inscription">S'inscrire</button>
     </form>
 
-    <p class="message">
-      <?php if (isset($_GET['msg'])) echo htmlspecialchars($_GET['msg']); ?>
-    </p>
+    <?php if ($message): ?>
+    <div class="message <?php echo $messageType; ?>">
+      <?php echo htmlspecialchars($message); ?>
+    </div>
+    <?php endif; ?>
 
     <div class="switch-link">
       Vous avez déjà un compte ? <a href="pageLogin.php">Connectez-vous ici</a>

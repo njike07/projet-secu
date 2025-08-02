@@ -1,9 +1,32 @@
 <?php
 session_start();
-//var_dump($_SESSION);
+require_once 'config/auth.php';
+require_once 'config/database.php';
 
-if(!$_SESSION['compte']){
-    header("Location: pageLogin.php?msg=Veillez vous connecter !");
+$auth = new Auth();
+$db = new Database();
+
+// Vérification de l'authentification
+if (!$auth->checkPermission('etudiant')) {
+    header("Location: pageLogin.php?msg=Veuillez vous connecter&type=error");
+    exit();
+}
+
+// Récupération des informations de l'utilisateur
+$stmt = $db->prepare("SELECT * FROM fiches_inscription WHERE user_id = ?");
+$stmt->execute([$_SESSION['user_id']]);
+$ficheInscription = $stmt->fetch();
+
+// Récupération des documents
+$stmt = $db->prepare("SELECT COUNT(*) as total FROM documents WHERE user_id = ?");
+$stmt->execute([$_SESSION['user_id']]);
+$totalDocuments = $stmt->fetch()['total'];
+
+$message = '';
+$messageType = 'info';
+if (isset($_GET['msg'])) {
+    $message = htmlspecialchars($_GET['msg']);
+    $messageType = isset($_GET['type']) ? $_GET['type'] : 'info';
 }
 ?>
 
@@ -26,9 +49,13 @@ if(!$_SESSION['compte']){
         </div>
         <div class="user-menu">
             <div class="user-avatar">
-              <?php echo substr($_SESSION['compte']['nom'],0,1 ) ?>
-              <?php echo substr($_SESSION['compte']['prenom'],0,1 ) ?>
-
+              <?php echo substr($_SESSION['user_nom'],0,1 ) ?>
+              <?php echo substr($_SESSION['user_prenom'],0,1 ) ?>
+            </div>
+            <div class="user-menu-dropdown">
+                <a href="profile.php"><i class="fas fa-user"></i> Mon Profil</a>
+                <a href="upload_document.php"><i class="fas fa-file-upload"></i> Documents</a>
+                <a href="logout.php"><i class="fas fa-sign-out-alt"></i> Déconnexion</a>
             </div>
         </div>
     </div>
@@ -37,7 +64,7 @@ if(!$_SESSION['compte']){
     <div class="container">
         <!-- Carte de bienvenue -->
         <div class="welcome-card">
-            <h1>Bienvenue, <?php echo $_SESSION['compte']['prenom'] ?></h1>
+            <h1>Bienvenue, <?php echo htmlspecialchars($_SESSION['user_prenom']) ?></h1>
             <p>Votre portail étudiant pour gérer votre inscription</p>
             <div class="status-badge">Statut : En attente de validation</div>
         </div>

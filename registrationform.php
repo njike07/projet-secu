@@ -1,5 +1,21 @@
 <?php
 session_start();
+require_once 'config/auth.php';
+require_once 'config/database.php';
+
+$auth = new Auth();
+$db = new Database();
+
+// Vérification de l'authentification
+if (!$auth->checkPermission('etudiant')) {
+    header("Location: pageLogin.php?msg=Veuillez vous connecter&type=error");
+    exit();
+}
+
+// Récupération des données existantes si disponibles
+$stmt = $db->prepare("SELECT * FROM fiches_inscription WHERE user_id = ?");
+$stmt->execute([$_SESSION['user_id']]);
+$existingData = $stmt->fetch();
 ?>
 <html lang="fr">
 <head>
@@ -72,42 +88,61 @@ session_start();
   <h2 class="w3-center">Formulaire d'inscription Étudiant</h2>
 
   <form method="POST" action="registrationformtreatmt.php">
+    <input type="hidden" name="csrf_token" value="<?php echo $auth->generateCSRFToken(); ?>">
 
     <!-- Informations personnelles -->
     <div class="w3-row-padding form-group">
       <div class="w3-half">
-        <label>Nom</label>
-        <input class="w3-input w3-border" name="nom" type="text" required>
+        <label>Nom *</label>
+        <input class="w3-input w3-border" name="nom" type="text" required value="<?php echo htmlspecialchars($existingData['nom'] ?? ''); ?>">
       </div>
       <div class="w3-half">
-        <label>Prénom</label>
-        <input class="w3-input w3-border" name="prenom" type="text" required>
+        <label>Prénom *</label>
+        <input class="w3-input w3-border" name="prenom" type="text" required value="<?php echo htmlspecialchars($existingData['prenom'] ?? ''); ?>">
       </div>
     </div>
 
     <div class="w3-row-padding form-group">
       <div class="w3-half">
-        <label>Date de naissance</label>
-        <input class="w3-input w3-border" name="date_de_naissance" type="date" required>
+        <label>Date de naissance *</label>
+        <input class="w3-input w3-border" name="date_de_naissance" type="date" required value="<?php echo htmlspecialchars($existingData['date_de_naissance'] ?? ''); ?>">
       </div>
       <div class="w3-half">
-        <label>Sexe</label>
+        <label>Lieu de naissance *</label>
+        <input class="w3-input w3-border" name="lieu_naissance" type="text" required value="<?php echo htmlspecialchars($existingData['lieu_naissance'] ?? ''); ?>">
+      </div>
+    </div>
+
+    <div class="w3-row-padding form-group">
+      <div class="w3-half">
+        <label>Sexe *</label>
         <select class="w3-select w3-border" name="sexe" required>
-          <option value="" disabled selected>Choisissez</option>
-          <option value="Homme">Homme</option>
-          <option value="Femme">Femme</option>
+          <option value="" disabled <?php echo empty($existingData['sexe']) ? 'selected' : ''; ?>>Choisissez</option>
+          <option value="Homme" <?php echo ($existingData['sexe'] ?? '') === 'Homme' ? 'selected' : ''; ?>>Homme</option>
+          <option value="Femme" <?php echo ($existingData['sexe'] ?? '') === 'Femme' ? 'selected' : ''; ?>>Femme</option>
         </select>
       </div>
+      <div class="w3-half">
+        <label>Nationalité *</label>
+        <input class="w3-input w3-border" name="nationalite" type="text" required value="<?php echo htmlspecialchars($existingData['nationalite'] ?? ''); ?>">
+      </div>
     </div>
 
     <div class="w3-row-padding form-group">
       <div class="w3-half">
-        <label>Nationalité</label>
-        <input class="w3-input w3-border" name="nationalite" type="text" required>
+        <label>Email *</label>
+        <input class="w3-input w3-border" name="email" type="email" required value="<?php echo htmlspecialchars($existingData['email'] ?? $_SESSION['user_email'] ?? ''); ?>">
       </div>
       <div class="w3-half">
-        <label>Email</label>
-        <input class="w3-input w3-border" name="email" type="email" required>
+        <label>Téléphone *</label>
+        <input class="w3-input w3-border" name="telephone" type="tel" required value="<?php echo htmlspecialchars($existingData['telephone'] ?? ''); ?>">
+      </div>
+    </div>
+
+    <div class="w3-row-padding form-group">
+      <div class="w3-full">
+        <label>Adresse postale *</label>
+        <textarea class="w3-input w3-border" name="adresse_postale" rows="3" required placeholder="Adresse complète (rue, ville, code postal, pays)"><?php echo htmlspecialchars($existingData['adresse_postale'] ?? ''); ?></textarea>
       </div>
     </div>
 

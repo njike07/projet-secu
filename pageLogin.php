@@ -1,23 +1,42 @@
 <?php
 session_start();
-$pdo = new PDO('mysql:host=localhost;dbname=kamerhosting_amn', 'kamerhosting_amn', 'RStLrbpGNPOq');
+require_once 'config/auth.php';
 
-// Connexion
-if (isset($_POST['connexion'])) {
-    $email = $_POST['email_connexion'];
-    $mot_de_passe = $_POST['mot_de_passe_connexion'];
+$auth = new Auth();
+$message = '';
+$messageType = 'error';
 
-    $stmt = $pdo->prepare("SELECT * FROM compte WHERE email = ?");
-    $stmt->execute([$email]);
-    $user = $stmt->fetch();
-
-    if ($user && password_verify($mot_de_passe, $user['mot_de_passe'])) {
-        $_SESSION['compte'] = $user;
-        header("Location: index.php?msg=Connexion réussie !");
+// Traitement de la connexion
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['connexion'])) {
+    // Validation CSRF
+    if (!$auth->validateCSRFToken($_POST['csrf_token'] ?? '')) {
+        $message = 'Token de sécurité invalide';
     } else {
-        header("Location: pageLogin.php?msg=Email ou mot de passe incorrect.");
+        $email = $_POST['email_connexion'] ?? '';
+        $password = $_POST['mot_de_passe_connexion'] ?? '';
+        $remember = isset($_POST['remember_me']);
+        
+        $result = $auth->login($email, $password, $remember);
+        
+        if ($result['success']) {
+            $messageType = 'success';
+            // Redirection selon le type d'utilisateur
+            if ($result['user']['type'] === 'admin') {
+                header("Location: admin_dashboard.php?msg=Connexion réussie");
+            } else {
+                header("Location: index.php?msg=Connexion réussie");
+            }
+            exit();
+        } else {
+            $message = $result['message'];
+        }
     }
-    exit();
+}
+
+// Récupération du message depuis l'URL
+if (isset($_GET['msg'])) {
+    $message = htmlspecialchars($_GET['msg']);
+    $messageType = isset($_GET['type']) ? $_GET['type'] : 'info';
 }
 ?>
 
@@ -100,9 +119,26 @@ if (isset($_POST['connexion'])) {
       background-color: #16325c;
     }
     .message {
-      color: red;
       text-align: center;
-      margin-bottom: 10px;
+      margin-bottom: 15px;
+      padding: 10px;
+      border-radius: 5px;
+      font-weight: 500;
+    }
+    .message.error {
+      color: #d32f2f;
+      background-color: #ffebee;
+      border: 1px solid #ffcdd2;
+    }
+    .message.success {
+      color: #388e3c;
+      background-color: #e8f5e8;
+      border: 1px solid #c8e6c9;
+    }
+    .message.info {
+      color: #1976d2;
+      background-color: #e3f2fd;
+      border: 1px solid #bbdefb;
     }
     .switch-link {
       text-align: center;
@@ -129,14 +165,39 @@ if (isset($_POST['connexion'])) {
     <p class="welcome">Heureux de vous revoir ! Connectez-vous à votre espace COENDAI.</p>
 
     <form action="pageLogin.php" method="POST">
-      <input type="email" name="email_connexion" placeholder="Email" required>
+      <input type="hidden" name="csrf_token" value="<?php echo $auth->generateCSRFToken(); ?>">
+      <input type="email" name="email_connexion" placeholder="Email" required value="<?php echo isset($_POST['email_connexion']) ? htmlspecialchars($_POST['email_connexion']) : ''; ?>">
       <input type="password" name="mot_de_passe_connexion" placeholder="Mot de passe" required>
+      <div style="margin: 10px 0; text-align: left;">
+        <label style="font-size: 14px; color: #666;">
+          <input type="checkbox" name="remember_me" style="margin-right: 5px;"> Se souvenir de moi
+        </label>
+      </div>
       <button type="submit" name="connexion">Se connecter</button>
     </form>
 
-    <p class="message">
-      <?php if (isset($_GET['msg'])) echo htmlspecialchars($_GET['msg']); ?>
-    </p>
+    <?php if ($message): ?>
+    <div class="message <?php echo $messageType; ?>">
+      <?php echo htmlspecialchars($message); ?>
+    </div>
+    <?php endif; ?>
+
+    <!-- Connexion OAuth -->
+    <div style="text-align: center; margin: 20px 0;">
+      <p style="color: #666; margin: 15px 0;">Ou connectez-vous avec :</p>
+      <div style="display: flex; gap: 10px; justify-content: center;">
+        <?php 
+        require_once 'config/oauth.php';
+        $oauth = new OAuth();
+        ?>
+        <a href="<?php echo $oauth->getGoogleAuthUrl(); ?>" style="background: #db4437; color: white; padding: 10px 15px; text-decoration: none; border-radius: 5px; display: inline-flex; align-items: center; gap: 8px;">
+          <i class="fab fa-google"></i> Google
+        </a>
+        <a href="<?php echo $oauth->getFacebookAuthUrl(); ?>" style="background: #4267B2; color: white; padding: 10px 15px; text-decoration: none; border-radius: 5px; display: inline-flex; align-items: center; gap: 8px;">
+          <i class="fab fa-facebook-f"></i> Facebook
+        </a>
+      </div>
+    </div>
 
     <div class="switch-link">
       Vous n'avez pas de compte ? <a href="pageSignup.php">Inscrivez-vous ici</a>

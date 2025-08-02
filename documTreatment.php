@@ -2,7 +2,7 @@
 $message = "";
 
 try {
-    $db = new PDO('mysql:host=localhost;dbname=kamerhosting_amn', 'kamerhosting_amn', 'RStLrbpGNPOq');
+    $db = new PDO('mysql:host=localhost;dbname=inscription', 'root', '');
 } catch (PDOException $e) {
     die("Erreur de connexion : " . $e->getMessage());
 }
