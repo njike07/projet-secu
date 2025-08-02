@@ -1,42 +1,49 @@
 <?php
-session_start();
-require_once 'config/auth.php';
+require_once 'config.php';
 
-$auth = new Auth();
-$message = '';
-$messageType = 'error';
-
-// Traitement de la connexion
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['connexion'])) {
+// Connexion
+if (isset($_POST['connexion'])) {
     // Validation CSRF
-    if (!$auth->validateCSRFToken($_POST['csrf_token'] ?? '')) {
-        $message = 'Token de sécurité invalide';
-    } else {
-        $email = $_POST['email_connexion'] ?? '';
-        $password = $_POST['mot_de_passe_connexion'] ?? '';
-        $remember = isset($_POST['remember_me']);
-        
-        $result = $auth->login($email, $password, $remember);
-        
-        if ($result['success']) {
-            $messageType = 'success';
-            // Redirection selon le type d'utilisateur
-            if ($result['user']['type'] === 'admin') {
-                header("Location: admin_dashboard.php?msg=Connexion réussie");
-            } else {
-                header("Location: index.php?msg=Connexion réussie");
-            }
-            exit();
-        } else {
-            $message = $result['message'];
-        }
+    if (!validateCSRFToken($_POST['csrf_token'] ?? '')) {
+        header("Location: pageLogin.php?msg=Erreur de sécurité. Veuillez réessayer.");
+        exit();
     }
-}
+    
+    $email = sanitize($_POST['email_connexion']);
+    $mot_de_passe = $_POST['mot_de_passe_connexion'];
+    
+    // Vérification protection brute force
+    if (checkBruteForce($pdo, $email)) {
+        logTentativeConnexion($pdo, $email, 0);
+        header("Location: pageLogin.php?msg=Trop de tentatives. Veuillez attendre 15 minutes.");
+        exit();
+    }
 
-// Récupération du message depuis l'URL
-if (isset($_GET['msg'])) {
-    $message = htmlspecialchars($_GET['msg']);
-    $messageType = isset($_GET['type']) ? $_GET['type'] : 'info';
+    $stmt = $pdo->prepare("SELECT * FROM utilisateurs WHERE email = ? AND actif = 1");
+    $stmt->execute([$email]);
+    $user = $stmt->fetch();
+
+    if ($user && password_verify($mot_de_passe, $user['mot_de_passe'])) {
+        // Régénérer l'ID de session pour éviter la fixation
+        session_regenerate_id(true);
+        $_SESSION['user'] = $user;
+        
+        // Mettre à jour dernière connexion
+        $stmt = $pdo->prepare("UPDATE utilisateurs SET derniere_connexion = NOW() WHERE id = ?");
+        $stmt->execute([$user['id']]);
+        
+        logTentativeConnexion($pdo, $email, 1);
+        
+        if ($user['role'] === 'administrateur') {
+            header("Location: admindash.php");
+        } else {
+            header("Location: student-home.php");
+        }
+    } else {
+        logTentativeConnexion($pdo, $email, 0);
+        header("Location: pageLogin.php?msg=Email ou mot de passe incorrect.");
+    }
+    exit();
 }
 ?>
 
@@ -46,7 +53,7 @@ if (isset($_GET['msg'])) {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Connexion</title>
-  <link rel="stylesheet" href="style/loginSignup.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
   <style>
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -59,15 +66,15 @@ if (isset($_GET['msg'])) {
     }
     .container {
       background: #fff;
-      padding: 40px;
+      padding: 30px;
       border-radius: 15px;
       box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
       width: 100%;
-      max-width: 450px;
+      max-width: 380px;
     }
     .header {
       text-align: center;
-      margin-bottom: 20px;
+      margin-bottom: 15px;
     }
     .logo {
       width: 80px;
@@ -93,52 +100,36 @@ if (isset($_GET['msg'])) {
     }
     .welcome {
       text-align: center;
-      margin-bottom: 20px;
-      font-size: 14px;
+      margin-bottom: 15px;
+      font-size: 13px;
       color: #444;
     }
     input {
       width: 100%;
-      padding: 12px;
-      margin-bottom: 15px;
+      padding: 10px;
+      margin-bottom: 12px;
       border: 1px solid #ccc;
-      border-radius: 8px;
-      font-size: 16px;
+      border-radius: 6px;
+      font-size: 14px;
+      box-sizing: border-box;
     }
     button {
       width: 100%;
-      padding: 12px;
+      padding: 10px;
       background-color: #1e3c72;
       color: white;
       border: none;
-      border-radius: 8px;
-      font-size: 16px;
+      border-radius: 6px;
+      font-size: 14px;
       cursor: pointer;
     }
     button:hover {
       background-color: #16325c;
     }
     .message {
+      color: red;
       text-align: center;
-      margin-bottom: 15px;
-      padding: 10px;
-      border-radius: 5px;
-      font-weight: 500;
-    }
-    .message.error {
-      color: #d32f2f;
-      background-color: #ffebee;
-      border: 1px solid #ffcdd2;
-    }
-    .message.success {
-      color: #388e3c;
-      background-color: #e8f5e8;
-      border: 1px solid #c8e6c9;
-    }
-    .message.info {
-      color: #1976d2;
-      background-color: #e3f2fd;
-      border: 1px solid #bbdefb;
+      margin-bottom: 10px;
     }
     .switch-link {
       text-align: center;
@@ -151,6 +142,59 @@ if (isset($_GET['msg'])) {
     }
     .switch-link a:hover {
       text-decoration: underline;
+    }
+    .divider {
+      text-align: center;
+      margin: 15px 0;
+      position: relative;
+    }
+    .divider::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: #ddd;
+    }
+    .divider span {
+      background: white;
+      padding: 0 15px;
+      color: #666;
+      font-size: 14px;
+    }
+    .social-buttons {
+      margin-bottom: 15px;
+    }
+    .social-btn {
+      width: 100%;
+      padding: 8px;
+      margin-bottom: 8px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.3s;
+    }
+    .google-btn {
+      background: white;
+      color: #333;
+    }
+    .google-btn:hover {
+      background: #f8f9fa;
+      border-color: #dadce0;
+    }
+    .facebook-btn {
+      background: #1877f2;
+      color: white;
+      border-color: #1877f2;
+    }
+    .facebook-btn:hover {
+      background: #166fe5;
     }
   </style>
 </head>
@@ -165,43 +209,38 @@ if (isset($_GET['msg'])) {
     <p class="welcome">Heureux de vous revoir ! Connectez-vous à votre espace COENDAI.</p>
 
     <form action="pageLogin.php" method="POST">
-      <input type="hidden" name="csrf_token" value="<?php echo $auth->generateCSRFToken(); ?>">
-      <input type="email" name="email_connexion" placeholder="Email" required value="<?php echo isset($_POST['email_connexion']) ? htmlspecialchars($_POST['email_connexion']) : ''; ?>">
+      <input type="hidden" name="csrf_token" value="<?php echo generateCSRFToken(); ?>">
+      <input type="email" name="email_connexion" placeholder="Email" required>
       <input type="password" name="mot_de_passe_connexion" placeholder="Mot de passe" required>
-      <div style="margin: 10px 0; text-align: left;">
-        <label style="font-size: 14px; color: #666;">
-          <input type="checkbox" name="remember_me" style="margin-right: 5px;"> Se souvenir de moi
-        </label>
-      </div>
       <button type="submit" name="connexion">Se connecter</button>
     </form>
 
-    <?php if ($message): ?>
-    <div class="message <?php echo $messageType; ?>">
-      <?php echo htmlspecialchars($message); ?>
+    <div class="divider">
+      <span>ou</span>
     </div>
-    <?php endif; ?>
 
-    <!-- Connexion OAuth -->
-    <div style="text-align: center; margin: 20px 0;">
-      <p style="color: #666; margin: 15px 0;">Ou connectez-vous avec :</p>
-      <div style="display: flex; gap: 10px; justify-content: center;">
-        <?php 
-        require_once 'config/oauth.php';
-        $oauth = new OAuth();
-        ?>
-        <a href="<?php echo $oauth->getGoogleAuthUrl(); ?>" style="background: #db4437; color: white; padding: 10px 15px; text-decoration: none; border-radius: 5px; display: inline-flex; align-items: center; gap: 8px;">
-          <i class="fab fa-google"></i> Google
-        </a>
-        <a href="<?php echo $oauth->getFacebookAuthUrl(); ?>" style="background: #4267B2; color: white; padding: 10px 15px; text-decoration: none; border-radius: 5px; display: inline-flex; align-items: center; gap: 8px;">
-          <i class="fab fa-facebook-f"></i> Facebook
-        </a>
-      </div>
+    <div class="social-buttons">
+      <button type="button" class="social-btn google-btn">
+        <i class="fab fa-google"></i>
+        Continuer avec Google
+      </button>
+      <button type="button" class="social-btn facebook-btn">
+        <i class="fab fa-facebook-f"></i>
+        Continuer avec Facebook
+      </button>
     </div>
+
+    <p class="message">
+      <?php if (isset($_GET['msg'])) echo htmlspecialchars($_GET['msg']); ?>
+    </p>
 
     <div class="switch-link">
-      Vous n'avez pas de compte ? <a href="pageSignup.php">Inscrivez-vous ici</a>
+      <a href="index.php" style="color: #666; font-size: 12px;">← Retour à l'accueil</a><br><br>
+      Vous n'avez pas de compte ? <a href="pageSignup.php">Créer un compte étudiant</a><br>
+      <small>Admin test: admin@etablissement.com / password</small>
     </div>
   </div>
+  <script src="js/scriptregistration.js"></script>
+  <script src="js/social-auth.js"></script>
 </body>
 </html>

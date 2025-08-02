@@ -1,3 +1,16 @@
+<?php
+require_once 'config.php';
+require_once 'admin_functions.php';
+
+if(!isset($_SESSION['user']) || $_SESSION['user']['role'] !== 'administrateur'){
+    header("Location: pageLogin.php");
+    exit();
+}
+
+$stats = getStatistics($pdo);
+$fiches = getAllFiches($pdo);
+?>
+
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -6,6 +19,7 @@
     <title>Cosendai - Tableau de bord Administrateur</title>
     <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" href="style/admindash.css">
     <style>
         :root {
             --primary-color: #3498db;
@@ -281,6 +295,14 @@
             color: var(--dark-color);
         }
         
+        .section {
+            display: none;
+        }
+        
+        .section.active {
+            display: block;
+        }
+        
         @media screen and (max-width: 768px) {
             .sidebar {
                 width: 0;
@@ -311,13 +333,13 @@
         <div class="logo">
             <h2><i class="fas fa-graduation-cap"></i> Cosendai</h2>
         </div>
-        <a href="#" class="active"><i class="fas fa-tachometer-alt"></i> Tableau de bord</a>
-        <a href="#"><i class="fas fa-users"></i> Étudiants</a>
-        <a href="#"><i class="fas fa-file-alt"></i> Fiches d'inscription</a>
-        <a href="#"><i class="fas fa-file-upload"></i> Documents</a>
-        <a href="#"><i class="fas fa-chart-bar"></i> Statistiques</a>
+        <a href="#" class="active" onclick="showSection('dashboard')"><i class="fas fa-tachometer-alt"></i> Tableau de bord</a>
+        <a href="#" onclick="showSection('students')"><i class="fas fa-users"></i> Étudiants</a>
+        <a href="#" onclick="showSection('fiches')"><i class="fas fa-file-alt"></i> Fiches d'inscription</a>
+        <a href="#" onclick="showSection('documents')"><i class="fas fa-file-upload"></i> Documents</a>
+        <a href="#" onclick="showSection('statistics')"><i class="fas fa-chart-bar"></i> Statistiques</a>
         <a href="#"><i class="fas fa-cog"></i> Paramètres</a>
-        <a href="#"><i class="fas fa-sign-out-alt"></i> Déconnexion</a>
+        <a href="logout.php"><i class="fas fa-sign-out-alt"></i> Déconnexion</a>
     </div>
 
     <!-- Main Content -->
@@ -330,6 +352,8 @@
             </div>
         </div>
 
+        <!-- Dashboard Section -->
+        <div id="dashboard-section" class="section active">
         <!-- Cards -->
         <div class="cards-container">
             <div class="card">
@@ -339,8 +363,8 @@
                         <i class="fas fa-users"></i>
                     </div>
                 </div>
-                <div class="card-value" id="totalRegistrations">245</div>
-                <div class="card-footer">+12 cette semaine</div>
+                <div class="card-value" id="totalRegistrations"><?php echo $stats['total'] ?></div>
+                <div class="card-footer">Total des inscriptions</div>
             </div>
             
             <div class="card">
@@ -350,8 +374,8 @@
                         <i class="fas fa-check-circle"></i>
                     </div>
                 </div>
-                <div class="card-value" id="approvedRegistrations">189</div>
-                <div class="card-footer">77% du total</div>
+                <div class="card-value" id="approvedRegistrations"><?php echo $stats['validees'] ?></div>
+                <div class="card-footer">Inscriptions validées</div>
             </div>
             
             <div class="card">
@@ -361,8 +385,8 @@
                         <i class="fas fa-clock"></i>
                     </div>
                 </div>
-                <div class="card-value" id="pendingRegistrations">42</div>
-                <div class="card-footer">14 à traiter aujourd'hui</div>
+                <div class="card-value" id="pendingRegistrations"><?php echo $stats['en_attente'] ?></div>
+                <div class="card-footer">En attente de validation</div>
             </div>
             
             <div class="card">
@@ -372,8 +396,8 @@
                         <i class="fas fa-times-circle"></i>
                     </div>
                 </div>
-                <div class="card-value" id="rejectedRegistrations">14</div>
-                <div class="card-footer">5.7% du total</div>
+                <div class="card-value" id="rejectedRegistrations"><?php echo $stats['refusees'] ?></div>
+                <div class="card-footer">Inscriptions refusées</div>
             </div>
         </div>
 
@@ -415,150 +439,214 @@
                     </tr>
                 </thead>
                 <tbody>
+                    <?php foreach ($fiches as $fiche): ?>
                     <tr>
-                        <td>#1001</td>
-                        <td>Jean Dupont</td>
-                        <td>Informatique</td>
-                        <td>15/06/2023</td>
-                        <td><span class="status status-approved">Validé</span></td>
+                        <td>#<?php echo $fiche['id'] ?></td>
+                        <td><?php echo $fiche['nom'] . ' ' . $fiche['prenom'] ?></td>
+                        <td><?php echo $fiche['formation_demandee'] ?></td>
+                        <td><?php echo date('d/m/Y', strtotime($fiche['date_soumission'])) ?></td>
                         <td>
-                            <button class="btn btn-primary btn-sm">Voir</button>
-                            <button class="btn btn-primary btn-sm">Modifier</button>
+                            <span class="status status-<?php echo $fiche['statut'] === 'validee' ? 'approved' : ($fiche['statut'] === 'refusee' ? 'rejected' : 'pending') ?>">
+                                <?php echo ucfirst(str_replace('_', ' ', $fiche['statut'])) ?>
+                            </span>
+                        </td>
+                        <td>
+                            <a href="admin_view_fiche.php?id=<?php echo $fiche['id'] ?>" class="btn btn-primary btn-sm">Voir</a>
+                            <a href="admin_edit_fiche.php?id=<?php echo $fiche['id'] ?>" class="btn btn-primary btn-sm">Modifier</a>
                         </td>
                     </tr>
-                    <tr>
-                        <td>#1002</td>
-                        <td>Marie Lambert</td>
-                        <td>Gestion</td>
-                        <td>16/06/2023</td>
-                        <td><span class="status status-pending">En attente</span></td>
-                        <td>
-                            <button class="btn btn-primary btn-sm">Voir</button>
-                            <button class="btn btn-primary btn-sm">Modifier</button>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td>#1003</td>
-                        <td>Pierre Martin</td>
-                        <td>Droit</td>
-                        <td>17/06/2023</td>
-                        <td><span class="status status-rejected">Rejeté</span></td>
-                        <td>
-                            <button class="btn btn-primary btn-sm">Voir</button>
-                            <button class="btn btn-primary btn-sm">Modifier</button>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td>#1004</td>
-                        <td>Sophie Bernard</td>
-                        <td>Informatique</td>
-                        <td>18/06/2023</td>
-                        <td><span class="status status-approved">Validé</span></td>
-                        <td>
-                            <button class="btn btn-primary btn-sm">Voir</button>
-                            <button class="btn btn-primary btn-sm">Modifier</button>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td>#1005</td>
-                        <td>Luc Petit</td>
-                        <td>Gestion</td>
-                        <td>19/06/2023</td>
-                        <td><span class="status status-pending">En attente</span></td>
-                        <td>
-                            <button class="btn btn-primary btn-sm">Voir</button>
-                            <button class="btn btn-primary btn-sm">Modifier</button>
-                        </td>
-                    </tr>
+                    <?php endforeach; ?>
                 </tbody>
             </table>
+        </div>
+        </div>
+
+        <!-- Students Section -->
+        <div id="students-section" class="section">
+            <h2>Gestion des Étudiants</h2>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Nom</th>
+                            <th>Email</th>
+                            <th>Date inscription</th>
+                            <th>Statut</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php 
+                        $stmt = $pdo->query("SELECT * FROM utilisateurs WHERE role = 'etudiant' ORDER BY date_creation DESC");
+                        while($etudiant = $stmt->fetch()): 
+                        ?>
+                        <tr>
+                            <td>#<?php echo $etudiant['id'] ?></td>
+                            <td><?php echo htmlspecialchars($etudiant['nom'] . ' ' . $etudiant['prenom']) ?></td>
+                            <td><?php echo htmlspecialchars($etudiant['email']) ?></td>
+                            <td><?php echo date('d/m/Y', strtotime($etudiant['date_creation'])) ?></td>
+                            <td><span class="status <?php echo $etudiant['actif'] ? 'status-approved' : 'status-rejected' ?>"><?php echo $etudiant['actif'] ? 'Actif' : 'Inactif' ?></span></td>
+                            <td>
+                                <button class="btn btn-primary btn-sm">Voir</button>
+                                <button class="btn btn-danger btn-sm"><?php echo $etudiant['actif'] ? 'Désactiver' : 'Activer' ?></button>
+                            </td>
+                        </tr>
+                        <?php endwhile; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Fiches Section -->
+        <div id="fiches-section" class="section">
+            <h2>Fiches d'inscription</h2>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Nom complet</th>
+                            <th>Formation</th>
+                            <th>Date soumission</th>
+                            <th>Statut</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($fiches as $fiche): ?>
+                        <tr>
+                            <td>#<?php echo $fiche['id'] ?></td>
+                            <td><?php echo $fiche['nom'] . ' ' . $fiche['prenom'] ?></td>
+                            <td><?php echo $fiche['formation_demandee'] ?></td>
+                            <td><?php echo date('d/m/Y', strtotime($fiche['date_soumission'])) ?></td>
+                            <td>
+                                <span class="status status-<?php echo $fiche['statut'] === 'validee' ? 'approved' : ($fiche['statut'] === 'refusee' ? 'rejected' : 'pending') ?>">
+                                    <?php echo ucfirst(str_replace('_', ' ', $fiche['statut'])) ?>
+                                </span>
+                            </td>
+                            <td>
+                                <a href="admin_view_fiche.php?id=<?php echo $fiche['id'] ?>" class="btn btn-primary btn-sm">Voir</a>
+                                <a href="admin_edit_fiche.php?id=<?php echo $fiche['id'] ?>" class="btn btn-primary btn-sm">Modifier</a>
+                            </td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Documents Section -->
+        <div id="documents-section" class="section">
+            <h2>Gestion des Documents</h2>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID Fiche</th>
+                            <th>Étudiant</th>
+                            <th>Type Document</th>
+                            <th>Nom Fichier</th>
+                            <th>Date upload</th>
+                            <th>Taille</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php 
+                        $stmt = $pdo->query("SELECT d.*, f.nom, f.prenom FROM documents d JOIN fiches_inscription f ON d.fiche_id = f.id ORDER BY d.date_upload DESC");
+                        $hasDocuments = false;
+                        while($doc = $stmt->fetch()): 
+                            $hasDocuments = true;
+                        ?>
+                        <tr>
+                            <td>#<?php echo $doc['fiche_id'] ?></td>
+                            <td><?php echo htmlspecialchars($doc['nom'] . ' ' . $doc['prenom']) ?></td>
+                            <td><?php echo ucfirst(str_replace('_', ' ', $doc['type_document'])) ?></td>
+                            <td><?php echo htmlspecialchars($doc['nom_fichier']) ?></td>
+                            <td><?php echo date('d/m/Y H:i', strtotime($doc['date_upload'])) ?></td>
+                            <td><?php echo round($doc['taille_fichier']/1024, 1) ?> KB</td>
+                            <td>
+                                <a href="<?php echo $doc['chemin_fichier'] ?>" class="btn btn-primary btn-sm" target="_blank">Voir</a>
+                                <button class="btn btn-danger btn-sm">Supprimer</button>
+                            </td>
+                        </tr>
+                        <?php endwhile; 
+                        if (!$hasDocuments): ?>
+                        <tr>
+                            <td colspan="7" style="text-align: center; padding: 40px; color: #666;">
+                                <i class="fas fa-folder-open" style="font-size: 48px; margin-bottom: 10px; opacity: 0.3;"></i><br>
+                                Aucun document n'a encore été importé
+                            </td>
+                        </tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Statistics Section -->
+        <div id="statistics-section" class="section">
+            <h2>Statistiques détaillées</h2>
+            
+            <div class="cards-container">
+                <?php
+                $totalUsers = $pdo->query("SELECT COUNT(*) FROM utilisateurs WHERE role = 'etudiant'")->fetchColumn();
+                $totalDocs = $pdo->query("SELECT COUNT(*) FROM documents")->fetchColumn();
+                $avgCompletion = $pdo->query("SELECT AVG(CASE WHEN statut = 'validee' THEN 100 WHEN statut = 'en_attente' THEN 50 ELSE 0 END) FROM fiches_inscription")->fetchColumn();
+                ?>
+                <div class="card">
+                    <h3>Total Étudiants</h3>
+                    <div class="card-value"><?php echo $totalUsers ?></div>
+                </div>
+                <div class="card">
+                    <h3>Documents Uploadés</h3>
+                    <div class="card-value"><?php echo $totalDocs ?></div>
+                </div>
+                <div class="card">
+                    <h3>Taux de Complétion</h3>
+                    <div class="card-value"><?php echo round($avgCompletion, 1) ?>%</div>
+                </div>
+            </div>
+            
+            <div class="chart-container">
+                <h3 class="chart-title">Inscriptions par mois (Année courante)</h3>
+                <canvas id="monthlyChart" height="100"></canvas>
+            </div>
+            
+            <div class="chart-container" style="max-width: 400px; margin: 0 auto;">
+                <h3 class="chart-title">Répartition par formation</h3>
+                <canvas id="formationChart" width="300" height="300"></canvas>
+            </div>
         </div>
     </div>
 
     <!-- JavaScript -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
-        // Chart.js Implementation
-        document.addEventListener('DOMContentLoaded', function() {
-            // Registration Statistics Chart
-            const ctx = document.getElementById('registrationsChart').getContext('2d');
-            const registrationsChart = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'],
-                    datasets: [{
-                        label: 'Inscriptions',
-                        data: [15, 22, 18, 25, 30, 42, 35, 28, 40, 38, 45, 50],
-                        backgroundColor: 'rgba(52, 152, 219, 0.7)',
-                        borderColor: 'rgba(52, 152, 219, 1)',
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    scales: {
-                        y: {
-                            beginAtZero: true
-                        }
-                    }
-                }
-            });
-
-            // Search functionality
-            const searchInput = document.getElementById('searchInput');
-            searchInput.addEventListener('keyup', function() {
-                const filter = searchInput.value.toLowerCase();
-                const rows = document.querySelectorAll('#registrationsTable tbody tr');
-                
-                rows.forEach(row => {
-                    const name = row.cells[1].textContent.toLowerCase();
-                    const formation = row.cells[2].textContent.toLowerCase();
-                    if (name.includes(filter) || formation.includes(filter)) {
-                        row.style.display = '';
-                    } else {
-                        row.style.display = 'none';
-                    }
-                });
-            });
-
-            // Filter by status
-            const statusFilter = document.getElementById('statusFilter');
-            statusFilter.addEventListener('change', function() {
-                const filterValue = statusFilter.value;
-                const rows = document.querySelectorAll('#registrationsTable tbody tr');
-                
-                rows.forEach(row => {
-                    const status = row.cells[4].textContent.toLowerCase();
-                    if (filterValue === 'all' || status.includes(filterValue)) {
-                        row.style.display = '';
-                    } else {
-                        row.style.display = 'none';
-                    }
-                });
-            });
-
-            // Simulate data loading
-            setTimeout(() => {
-                document.getElementById('totalRegistrations').textContent = '256';
-                document.getElementById('approvedRegistrations').textContent = '195';
-                document.getElementById('pendingRegistrations').textContent = '47';
-                document.getElementById('rejectedRegistrations').textContent = '14';
-            }, 1500);
-        });
-
-        // Toggle sidebar on small screens
-        function toggleSidebar() {
-            const sidebar = document.getElementById('sidebar');
-            const mainContent = document.getElementById('mainContent');
-            
-            if (sidebar.style.width === '250px') {
-                sidebar.style.width = '0';
-                mainContent.style.marginLeft = '0';
-            } else {
-                sidebar.style.width = '250px';
-                mainContent.style.marginLeft = '250px';
-            }
+        // Get dynamic data from PHP
+        <?php
+        $monthlyData = [];
+        for($i = 1; $i <= 12; $i++) {
+            $stmt = $pdo->prepare("SELECT COUNT(*) as count FROM fiches_inscription WHERE MONTH(date_soumission) = ? AND YEAR(date_soumission) = YEAR(CURDATE())");
+            $stmt->execute([$i]);
+            $monthlyData[] = $stmt->fetchColumn();
         }
+        
+        $formationStats = $pdo->query("SELECT formation_demandee, COUNT(*) as count FROM fiches_inscription WHERE formation_demandee IS NOT NULL AND formation_demandee != '' GROUP BY formation_demandee")->fetchAll();
+        $formations = [];
+        $counts = [];
+        foreach($formationStats as $stat) {
+            $formations[] = $stat['formation_demandee'];
+            $counts[] = $stat['count'];
+        }
+        ?>
+        var monthlyData = <?php echo json_encode($monthlyData); ?>;
+        var formationData = {
+            labels: <?php echo json_encode($formations); ?>,
+            counts: <?php echo json_encode($counts); ?>
+        };
     </script>
+    <script src="js/admin-dashboard.js"></script>
 </body>
 </html>

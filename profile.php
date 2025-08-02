@@ -1,5 +1,16 @@
 <?php
 session_start();
+require_once 'config.php';
+
+if(!isset($_SESSION['user']) || $_SESSION['user']['role'] !== 'etudiant'){
+    header("Location: pageLogin.php");
+    exit();
+}
+
+$user = $_SESSION['user'];
+$stmt = $pdo->prepare("SELECT * FROM fiches_inscription WHERE utilisateur_id = ?");
+$stmt->execute([$user['id']]);
+$fiche = $stmt->fetch();
 ?>
 
 <!DOCTYPE html>
@@ -14,44 +25,32 @@ session_start();
 
   <a href="index.php" class="back-arrow">&#8592; Retour à l'accueil</a>
 
-  <div class="background-animation"></div>
-<!--
-  <div class="toggle-theme">
-    <button id="themeToggle">🌙 Mode sombre</button>
-  </div>
-  -->
-
   <div class="profile-container">
     <div class="profile-card">
       <div class="profile-header">
-        <img src="images/user-avatar.png" alt="Photo de profil" class="avatar">
-        <?php echo substr($_SESSION['compte']['nom'],0,1 ) ?>
-        <h1> <?php echo $_SESSION['fiches_inscription']['specialisation'] ?></h1>
+        <div class="avatar"><?php echo substr($user['nom'],0,1) . substr($user['prenom'],0,1) ?></div>
+        <h1><?php echo $user['prenom'] . ' ' . $user['nom'] ?></h1>
+        <p><?php echo $fiche['formation_demandee'] ?? 'Formation non définie' ?></p>
       </div>
 
       <div class="profile-details">
-      <h1> Nom  : <?php echo $_SESSION['compte']['nom'] ?></h1>
-      <h1> Prenom  : <?php echo $_SESSION['compte']['prenom'] ?></h1>
-      <h1> Email :  <?php echo $_SESSION['compte']['email'] ?></h1>
-      <h1> Email :  ****</h1>
-      
+        <?php if ($fiche): ?>
+        <p><strong>Email:</strong> <?php echo $fiche['email'] ?></p>
+        <p><strong>Téléphone:</strong> <?php echo $fiche['telephone'] ?></p>
+        <p><strong>Date de naissance:</strong> <?php echo date('d/m/Y', strtotime($fiche['date_naissance'])) ?></p>
+        <p><strong>Nationalité:</strong> <?php echo $fiche['nationalite'] ?></p>
+        <p><strong>Statut:</strong> <?php echo ucfirst(str_replace('_', ' ', $fiche['statut'])) ?></p>
+        <?php else: ?>
+        <p>Aucune fiche d'inscription trouvée. <a href="registrationform.php">Créer ma fiche</a></p>
+        <?php endif; ?>
       </div>
+      
       <div class="profile-actions">
-        <a href="#" class="btn">Modifier mon profil</a>
+        <a href="registrationform.php" class="btn">Modifier mon profil</a>
       </div>
     </div>
   </div>
 
-  <script>
-    const toggleBtn = document.getElementById('themeToggle');
-    toggleBtn.addEventListener('click', () => {
-      document.body.classList.toggle('dark');
-      if (document.body.classList.contains('dark')) {
-        toggleBtn.textContent = '☀️ Mode clair';
-      } else {
-        toggleBtn.textContent = '🌙 Mode sombre';
-      }
-    });
-  </script>
+
 </body>
 </html>

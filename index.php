@@ -1,32 +1,14 @@
 <?php
-session_start();
-require_once 'config/auth.php';
-require_once 'config/database.php';
+require_once 'config.php';
 
-$auth = new Auth();
-$db = new Database();
-
-// Vérification de l'authentification
-if (!$auth->checkPermission('etudiant')) {
-    header("Location: pageLogin.php?msg=Veuillez vous connecter&type=error");
+// Rediriger si déjà connecté
+if (isset($_SESSION['user'])) {
+    if ($_SESSION['user']['role'] === 'administrateur') {
+        header("Location: admindash.php");
+    } else {
+        header("Location: student-home.php");
+    }
     exit();
-}
-
-// Récupération des informations de l'utilisateur
-$stmt = $db->prepare("SELECT * FROM fiches_inscription WHERE user_id = ?");
-$stmt->execute([$_SESSION['user_id']]);
-$ficheInscription = $stmt->fetch();
-
-// Récupération des documents
-$stmt = $db->prepare("SELECT COUNT(*) as total FROM documents WHERE user_id = ?");
-$stmt->execute([$_SESSION['user_id']]);
-$totalDocuments = $stmt->fetch()['total'];
-
-$message = '';
-$messageType = 'info';
-if (isset($_GET['msg'])) {
-    $message = htmlspecialchars($_GET['msg']);
-    $messageType = isset($_GET['type']) ? $_GET['type'] : 'info';
 }
 ?>
 
@@ -35,94 +17,327 @@ if (isset($_GET['msg'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Accueil - Cosendai</title>
-    <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <link rel="stylesheet" href="style/index.css">
+    <title>COENDAI - Plateforme d'inscription</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+        }
+
+        .hero {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000"><polygon fill="rgba(255,255,255,0.1)" points="0,1000 1000,0 1000,1000"/></svg>');
+            background-size: cover;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .hero-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 60px;
+            align-items: center;
+        }
+
+        .hero-text {
+            color: white;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin-bottom: 2rem;
+        }
+
+        .logo i {
+            margin-right: 15px;
+            color: #ffd700;
+        }
+
+        .hero-text h1 {
+            font-size: 3.5rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            line-height: 1.2;
+        }
+
+        .hero-text p {
+            font-size: 1.3rem;
+            margin-bottom: 2rem;
+            opacity: 0.9;
+        }
+
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 3rem;
+        }
+
+        .feature {
+            display: flex;
+            align-items: center;
+            color: white;
+            opacity: 0.9;
+        }
+
+        .feature i {
+            font-size: 1.5rem;
+            margin-right: 15px;
+            color: #ffd700;
+        }
+
+        .auth-card {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        .auth-card h2 {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+            color: #333;
+        }
+
+        .auth-card p {
+            color: #666;
+            margin-bottom: 2rem;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 15px 30px;
+            margin: 10px;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 1.1rem;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-outline {
+            background: transparent;
+            color: #667eea;
+            border-color: #667eea;
+        }
+
+        .btn-outline:hover {
+            background: #667eea;
+            color: white;
+            transform: translateY(-3px);
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 30px;
+            margin-top: 3rem;
+        }
+
+        .stat {
+            text-align: center;
+            color: white;
+        }
+
+        .stat-number {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #ffd700;
+        }
+
+        .stat-label {
+            opacity: 0.9;
+            margin-top: 5px;
+        }
+
+        @media (max-width: 768px) {
+            .hero-content {
+                grid-template-columns: 1fr;
+                gap: 40px;
+                text-align: center;
+            }
+
+            .hero-text h1 {
+                font-size: 2.5rem;
+            }
+
+            .stats {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+
+            .features {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .floating-elements {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            pointer-events: none;
+        }
+
+        .floating-elements::before,
+        .floating-elements::after {
+            content: '';
+            position: absolute;
+            width: 200px;
+            height: 200px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            animation: float 6s ease-in-out infinite;
+        }
+
+        .floating-elements::before {
+            top: 20%;
+            right: 10%;
+            animation-delay: -2s;
+        }
+
+        .floating-elements::after {
+            bottom: 20%;
+            left: 10%;
+            animation-delay: -4s;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-20px); }
+        }
+    </style>
 </head>
 <body>
-    <!-- En-tête -->
-    <div class="header">
-        <div class="logo">
-            <i class="fas fa-graduation-cap"></i> Cosendai
-        </div>
-        <div class="user-menu">
-            <div class="user-avatar">
-              <?php echo substr($_SESSION['user_nom'],0,1 ) ?>
-              <?php echo substr($_SESSION['user_prenom'],0,1 ) ?>
-            </div>
-            <div class="user-menu-dropdown">
-                <a href="profile.php"><i class="fas fa-user"></i> Mon Profil</a>
-                <a href="upload_document.php"><i class="fas fa-file-upload"></i> Documents</a>
-                <a href="logout.php"><i class="fas fa-sign-out-alt"></i> Déconnexion</a>
-            </div>
-        </div>
-    </div>
+    <div class="hero">
+        <div class="floating-elements"></div>
+        
+        <div class="container">
+            <div class="hero-content">
+                <div class="hero-text">
+                    <div class="logo">
+                        <i class="fas fa-graduation-cap"></i>
+                        COENDAI
+                    </div>
+                    
+                    <h1>Votre avenir commence ici</h1>
+                    <p>Plateforme moderne d'inscription et de gestion académique pour les étudiants ambitieux</p>
+                    
+                    <div class="features">
+                        <div class="feature">
+                            <i class="fas fa-rocket"></i>
+                            <span>Inscription rapide</span>
+                        </div>
+                        <div class="feature">
+                            <i class="fas fa-shield-alt"></i>
+                            <span>Données sécurisées</span>
+                        </div>
+                        <div class="feature">
+                            <i class="fas fa-clock"></i>
+                            <span>Suivi en temps réel</span>
+                        </div>
+                        <div class="feature">
+                            <i class="fas fa-users"></i>
+                            <span>Support 24/7</span>
+                        </div>
+                    </div>
 
-    <!-- Contenu principal -->
-    <div class="container">
-        <!-- Carte de bienvenue -->
-        <div class="welcome-card">
-            <h1>Bienvenue, <?php echo htmlspecialchars($_SESSION['user_prenom']) ?></h1>
-            <p>Votre portail étudiant pour gérer votre inscription</p>
-            <div class="status-badge">Statut : En attente de validation</div>
-        </div>
+                    <div class="stats">
+                        <div class="stat">
+                            <div class="stat-number">2,500+</div>
+                            <div class="stat-label">Étudiants inscrits</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-number">15+</div>
+                            <div class="stat-label">Formations</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-number">98%</div>
+                            <div class="stat-label">Satisfaction</div>
+                        </div>
+                    </div>
+                </div>
 
-        <!-- Progression -->
-        <div class="progress-container">
-            <h3 class="progress-title">Progression de votre inscription</h3>
-            <div class="progress-bar">
-                <div class="progress-fill"></div>
+                <div class="auth-card">
+                    <h2>Commencez votre parcours</h2>
+                    <p>Connectez-vous à votre espace ou créez votre compte étudiant</p>
+                    
+                    <a href="pageLogin.php" class="btn btn-primary">
+                        <i class="fas fa-sign-in-alt"></i> Se connecter
+                    </a>
+                    
+                    <a href="pageSignup.php" class="btn btn-outline">
+                        <i class="fas fa-user-plus"></i> S'inscrire
+                    </a>
+                    
+                    <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
+                        <p style="font-size: 0.9rem; color: #888;">Vous êtes administrateur ?</p>
+                        <a href="pageLogin.php" style="color: #667eea; text-decoration: none; font-weight: 600;">
+                            Accès administrateur
+                        </a>
+                    </div>
+                </div>
             </div>
-            <div class="progress-text">80% complété</div>
-        </div>
-
-        <!-- Cartes d'action -->
-        <div class="action-cards">
-            <div class="action-card" onclick="window.location.href='registrationform.php'" style="cursor: pointer;">
-                <i class="fas fa-edit"></i>
-                <h3>Commencer mon inscription</h3>
-                <p>Finalisez votre dossier en remplissant tous les champs obligatoires</p>
-            </div>
-            
-            
-            <div class="action-card" onclick="location.href='documents.php'">
-                <i class="fas fa-file-upload"></i>
-                <h3>Documents à fournir</h3>
-                <p>Consultez la liste des documents requis pour valider votre inscription</p>
-            </div>
-            
-            <div class="action-card" onclick="location.href='studash.php'">
-                <i class="fas fa-user"></i>
-                <h3>Mon Espace</h3>
-                <p>Visualisez et modifiez vos informations personnelles</p>
-            </div>
-            
-        </div>
-
-        <!-- Notification -->
-        <div class="notification">
-            <h3><i class="fas fa-exclamation-circle"></i> Action requise</h3>
-            <p>Merci de soumettre une photo d'identité conforme avant le 28 avril 2025</p>
-        </div>
-
-        <!-- Boutons d'action -->
-        <div style="text-align: center; margin-top: 30px;">
-            <a href="registrationform.php" class="btn">Reprendre mon inscription</a>
-            <a href="profile.php" class="btn btn-outline" style="margin-left: 10px;">Voir mon profil</a>
         </div>
     </div>
 
     <script>
-        // Animation simple de la barre de progression
+        // Animation d'entrée
         document.addEventListener('DOMContentLoaded', function() {
-            const progressFill = document.querySelector('.progress-fill');
-            progressFill.style.width = '0';
-            setTimeout(() => {
-                progressFill.style.width = '80%';
-                progressFill.style.transition = 'width 1s ease-in-out';
-            }, 300);
+            const elements = document.querySelectorAll('.hero-text > *, .auth-card > *');
+            elements.forEach((el, index) => {
+                el.style.opacity = '0';
+                el.style.transform = 'translateY(30px)';
+                el.style.transition = 'all 0.6s ease';
+                
+                setTimeout(() => {
+                    el.style.opacity = '1';
+                    el.style.transform = 'translateY(0)';
+                }, index * 100);
+            });
         });
     </script>
 </body>

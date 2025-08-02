@@ -1,44 +1,53 @@
 <?php
-session_start();
-require_once 'config/auth.php';
+require_once 'config.php';
 
-$auth = new Auth();
-$message = '';
-$messageType = 'error';
-
-// Traitement de l'inscription
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['inscription'])) {
+// Inscription
+if (isset($_POST['inscription'])) {
     // Validation CSRF
-    if (!$auth->validateCSRFToken($_POST['csrf_token'] ?? '')) {
-        $message = 'Token de sécurité invalide';
-    } else {
-        $nom = $_POST['nom'] ?? '';
-        $prenom = $_POST['prenom'] ?? '';
-        $email = $_POST['email'] ?? '';
-        $password = $_POST['mot_de_passe'] ?? '';
-        $confirmPassword = $_POST['confirm_password'] ?? '';
-        $type = $_POST['type'] ?? 'etudiant';
-        
-        // Validation des mots de passe
-        if ($password !== $confirmPassword) {
-            $message = 'Les mots de passe ne correspondent pas';
-        } else {
-            $result = $auth->register($nom, $prenom, $email, $password, $type);
-            
-            if ($result['success']) {
-                header("Location: pageLogin.php?msg=Inscription réussie ! Vous pouvez maintenant vous connecter.&type=success");
-                exit();
-            } else {
-                $message = $result['message'];
-            }
-        }
+    if (!validateCSRFToken($_POST['csrf_token'] ?? '')) {
+        header("Location: pageSignup.php?msg=Erreur de sécurité. Veuillez réessayer.");
+        exit();
     }
-}
+    
+    $nom = sanitize($_POST['nom']);
+    $prenom = sanitize($_POST['prenom']);
+    $email = sanitize($_POST['email']);
+    $mot_de_passe = $_POST['mot_de_passe'];
+    
+    // Validation du mot de passe
+    $passwordErrors = validatePassword($mot_de_passe);
+    if (!empty($passwordErrors)) {
+        $errorMsg = implode('. ', $passwordErrors);
+        header("Location: pageSignup.php?msg=" . urlencode($errorMsg));
+        exit();
+    }
+    
+    // Validation de l'email
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        header("Location: pageSignup.php?msg=Format d'email invalide");
+        exit();
+    }
 
-// Récupération du message depuis l'URL
-if (isset($_GET['msg'])) {
-    $message = htmlspecialchars($_GET['msg']);
-    $messageType = isset($_GET['type']) ? $_GET['type'] : 'info';
+    $stmt = $pdo->prepare("SELECT * FROM utilisateurs WHERE email = ?");
+    $stmt->execute([$email]);
+
+    if ($stmt->rowCount() > 0) {
+        header("Location: pageSignup.php?msg=Email déjà utilisé");
+        exit();
+    }
+    
+    // Hachage sécurisé du mot de passe
+    $mot_de_passe_hash = password_hash($mot_de_passe, PASSWORD_ARGON2ID, ['memory_cost' => 65536, 'time_cost' => 4, 'threads' => 3]);
+
+    $insert = $pdo->prepare("INSERT INTO utilisateurs (nom, prenom, email, mot_de_passe, role, date_creation) VALUES (?, ?, ?, ?, 'etudiant', NOW())");
+    $insert->execute([$nom, $prenom, $email, $mot_de_passe_hash]);
+
+    if ($insert) {
+        header("Location: pageLogin.php?msg=Inscription réussie ! Veuillez vous connecter.");
+    } else {
+        header("Location: pageSignup.php?msg=Erreur lors de l'inscription.");
+    }
+    exit();
 }
 ?>
 
@@ -48,7 +57,7 @@ if (isset($_GET['msg'])) {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Inscription</title>
-  <link rel="stylesheet" href="style/loginSignup.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
   <style>
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -61,15 +70,15 @@ if (isset($_GET['msg'])) {
     }
     .container {
       background: #fff;
-      padding: 40px;
+      padding: 30px;
       border-radius: 15px;
       box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
       width: 100%;
-      max-width: 450px;
+      max-width: 380px;
     }
     .header {
       text-align: center;
-      margin-bottom: 20px;
+      margin-bottom: 15px;
     }
     .logo {
       width: 80px;
@@ -95,26 +104,27 @@ if (isset($_GET['msg'])) {
     }
     .welcome {
       text-align: center;
-      margin-bottom: 20px;
-      font-size: 14px;
+      margin-bottom: 15px;
+      font-size: 13px;
       color: #444;
     }
     input {
       width: 100%;
-      padding: 12px;
-      margin-bottom: 15px;
+      padding: 10px;
+      margin-bottom: 12px;
       border: 1px solid #ccc;
-      border-radius: 8px;
-      font-size: 16px;
+      border-radius: 6px;
+      font-size: 14px;
+      box-sizing: border-box;
     }
     button {
       width: 100%;
-      padding: 12px;
+      padding: 10px;
       background-color: #1e3c72;
       color: white;
       border: none;
-      border-radius: 8px;
-      font-size: 16px;
+      border-radius: 6px;
+      font-size: 14px;
       cursor: pointer;
     }
     button:hover {
@@ -137,6 +147,59 @@ if (isset($_GET['msg'])) {
     .switch-link a:hover {
       text-decoration: underline;
     }
+    .divider {
+      text-align: center;
+      margin: 15px 0;
+      position: relative;
+    }
+    .divider::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: #ddd;
+    }
+    .divider span {
+      background: white;
+      padding: 0 15px;
+      color: #666;
+      font-size: 14px;
+    }
+    .social-buttons {
+      margin-bottom: 15px;
+    }
+    .social-btn {
+      width: 100%;
+      padding: 8px;
+      margin-bottom: 8px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.3s;
+    }
+    .google-btn {
+      background: white;
+      color: #333;
+    }
+    .google-btn:hover {
+      background: #f8f9fa;
+      border-color: #dadce0;
+    }
+    .facebook-btn {
+      background: #1877f2;
+      color: white;
+      border-color: #1877f2;
+    }
+    .facebook-btn:hover {
+      background: #166fe5;
+    }
   </style>
 </head>
 <body>
@@ -150,27 +213,40 @@ if (isset($_GET['msg'])) {
     <p class="welcome">Bienvenue chez COENDAI ! Inscrivez-vous pour continuer.</p>
 
     <form action="pageSignup.php" method="POST">
-      <input type="hidden" name="csrf_token" value="<?php echo $auth->generateCSRFToken(); ?>">
-      <input type="text" name="nom" placeholder="Nom" required value="<?php echo isset($_POST['nom']) ? htmlspecialchars($_POST['nom']) : ''; ?>">
-      <input type="text" name="prenom" placeholder="Prénom" required value="<?php echo isset($_POST['prenom']) ? htmlspecialchars($_POST['prenom']) : ''; ?>">
-      <input type="email" name="email" placeholder="Email" required value="<?php echo isset($_POST['email']) ? htmlspecialchars($_POST['email']) : ''; ?>">
-      <input type="password" name="mot_de_passe" placeholder="Mot de passe" required>
-      <input type="password" name="confirm_password" placeholder="Confirmer le mot de passe" required>
-      <div style="margin: 10px 0; text-align: left; font-size: 12px; color: #666;">
-        Le mot de passe doit contenir au moins 8 caractères, une majuscule, une minuscule, un chiffre et un caractère spécial.
-      </div>
-      <button type="submit" name="inscription">S'inscrire</button>
+      <input type="hidden" name="csrf_token" value="<?php echo generateCSRFToken(); ?>">
+      <input type="text" name="nom" placeholder="Nom" pattern="[A-Za-zà-ſ\s]{2,50}" required>
+      <input type="text" name="prenom" placeholder="Prénom" pattern="[A-Za-zà-ſ\s]{2,50}" required>
+      <input type="email" name="email" placeholder="Email" required>
+      <input type="password" name="mot_de_passe" placeholder="Mot de passe (8+ caractères, majuscule, chiffre, symbole)" minlength="8" required>
+      <div id="password-strength"></div>
+      <button type="submit" name="inscription">Créer mon compte étudiant</button>
     </form>
 
-    <?php if ($message): ?>
-    <div class="message <?php echo $messageType; ?>">
-      <?php echo htmlspecialchars($message); ?>
+    <div class="divider">
+      <span>ou</span>
     </div>
-    <?php endif; ?>
+
+    <div class="social-buttons">
+      <button type="button" class="social-btn google-btn">
+        <i class="fab fa-google"></i>
+        S'inscrire avec Google
+      </button>
+      <button type="button" class="social-btn facebook-btn">
+        <i class="fab fa-facebook-f"></i>
+        S'inscrire avec Facebook
+      </button>
+    </div>
+
+    <p class="message">
+      <?php if (isset($_GET['msg'])) echo htmlspecialchars($_GET['msg']); ?>
+    </p>
 
     <div class="switch-link">
+      <a href="index.php" style="color: #666; font-size: 12px;">← Retour à l'accueil</a><br><br>
       Vous avez déjà un compte ? <a href="pageLogin.php">Connectez-vous ici</a>
     </div>
   </div>
+  <script src="js/scriptregistration.js"></script>
+  <script src="js/social-auth.js"></script>
 </body>
 </html>
