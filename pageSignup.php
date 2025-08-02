@@ -1,4 +1,5 @@
 <?php
+// NJIKE Elsie
 require_once 'config.php';
 
 // Inscription

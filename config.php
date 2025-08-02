@@ -1,4 +1,5 @@
 <?php
+// NJIKE Elsie
 // Inclusion des fonctions de sécurité
 require_once 'security.php';
 

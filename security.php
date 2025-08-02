@@ -1,4 +1,5 @@
 <?php
+// NJIKE Elsie
 // Configuration sécurisée des sessions
 function secureSession() {
     // Configuration des cookies de session (seulement si session pas encore démarrée)
